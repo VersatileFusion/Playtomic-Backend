@@ -1,0 +1,216 @@
+// Prisma schema for Playtomic-style backend
+// Run `npx prisma migrate dev --name init` after editing
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  phone     String   @unique
+  name      String?
+  gender    String?
+  birthdate DateTime?
+  avatar    String?
+  role      String   // player, coach, club, admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bookings  Booking[]
+  coach     Coach?
+  clubs     Club[]   @relation("UserClubs")
+  wallet    Wallet?
+  matches   Match[]  @relation("MatchPlayers")
+  hostedMatches Match[] @relation("UserHostedMatches")
+  invites   MatchInvite[]
+  messages  Message[] @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
+  userBadges UserBadge[]
+  violationReports ViolationReport[]
+}
+
+model Club {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  contact   String?
+  image     String?
+  courts    Court[]
+  ownerId   Int?
+  owner     User?    @relation("UserClubs", fields: [ownerId], references: [id])
+  coaches   Coach[]  @relation("CoachClubs")
+  availabilities CoachAvailability[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Court {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String
+  price     Float
+  capacity  Int
+  clubId    Int
+  club      Club     @relation(fields: [clubId], references: [id])
+  bookings  Booking[]
+  courtMatches Match[] @relation("CourtMatches")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Coach {
+  id        Int      @id @default(autoincrement())
+  userId    Int     @unique
+  user      User    @relation(fields: [userId], references: [id])
+  bio       String?
+  resume    String?
+  clubs     Club[]  @relation("CoachClubs")
+  price     Float?
+  availableSlots String? // JSON or custom format
+  availabilities CoachAvailability[]
+  bookings  Booking[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Booking {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  courtId   Int
+  court     Court    @relation(fields: [courtId], references: [id])
+  coachId   Int?
+  coach     Coach?   @relation(fields: [coachId], references: [id])
+  startTime DateTime
+  endTime   DateTime
+  price     Float
+  status    String   // pending, paid, cancelled
+  payment   Payment?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id         Int      @id @default(autoincrement())
+  bookingId  Int     @unique
+  booking    Booking @relation(fields: [bookingId], references: [id])
+  amount     Float
+  status     String  // pending, paid, refunded
+  method     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Wallet {
+  id        Int      @id @default(autoincrement())
+  userId    Int     @unique
+  user      User    @relation(fields: [userId], references: [id])
+  balance   Float   @default(0)
+  transactions WalletTransaction[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WalletTransaction {
+  id        Int      @id @default(autoincrement())
+  walletId  Int
+  wallet    Wallet   @relation(fields: [walletId], references: [id])
+  type      String   // topup, withdraw, payment, refund
+  amount    Float
+  status    String   // pending, completed, failed
+  meta      String?  // optional details
+  createdAt DateTime @default(now())
+}
+
+model Match {
+  id        Int      @id @default(autoincrement())
+  title     String
+  type      String   // friendly, competitive
+  hostId    Int
+  host      User     @relation("UserHostedMatches", fields: [hostId], references: [id])
+  courtId   Int
+  court     Court    @relation("CourtMatches", fields: [courtId], references: [id])
+  startTime DateTime
+  capacity  Int      // 2 or 4
+  status    String   // open, full, closed
+  isPublic  Boolean  @default(true)
+  inviteLink String? // for private matches
+  players   User[]   @relation("MatchPlayers")
+  invites   MatchInvite[]
+  messages  Message[]
+  createdAt DateTime @default(now())
+}
+
+model MatchInvite {
+  id        Int      @id @default(autoincrement())
+  matchId   Int
+  match     Match    @relation(fields: [matchId], references: [id])
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  status    String   // pending, accepted, rejected
+  createdAt DateTime @default(now())
+}
+
+model CoachAvailability {
+  id        Int      @id @default(autoincrement())
+  coachId   Int
+  coach     Coach    @relation(fields: [coachId], references: [id])
+  clubId    Int
+  club      Club     @relation(fields: [clubId], references: [id])
+  dayOfWeek Int      // 0=Sunday, 6=Saturday
+  startTime String   // e.g., "09:00"
+  endTime   String   // e.g., "12:00"
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  senderId  Int
+  sender    User     @relation("MessageSender", fields: [senderId], references: [id])
+  receiverId Int
+  receiver  User     @relation("MessageReceiver", fields: [receiverId], references: [id])
+  matchId   Int?
+  match     Match?   @relation(fields: [matchId], references: [id])
+  text      String
+  createdAt DateTime @default(now())
+}
+
+model Badge {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  icon        String
+  userBadges  UserBadge[]
+}
+
+model UserBadge {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  badgeId   Int
+  badge     Badge    @relation(fields: [badgeId], references: [id])
+  awardedAt DateTime @default(now())
+}
+
+model Banner {
+  id        Int      @id @default(autoincrement())
+  title     String
+  image     String
+  link      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model ViolationReport {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  type        String
+  description String
+  status      String   // pending, reviewed, resolved
+  createdAt   DateTime @default(now())
+} 

@@ -1,0 +1,28 @@
+version: "3.8"
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: playtomic_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+  backend:
+    build: .
+    restart: always
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/playtomic_db
+      PORT: 3000
+      JWT_SECRET: supersecret
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+volumes:
+  db_data:
